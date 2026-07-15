@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="How WordInWeb uses visual parity tests and editing benchmarks to approach Microsoft Word rendering in the browser.">
-    <title>How WordInWeb reaches near Microsoft Word parity</title>
+    <title>Building MS Word in a Web Browser</title>
  
     <link rel="stylesheet" href="../index.css">
 </head>
@@ -12,16 +12,17 @@
     <main class="article-shell">
         <article>
             <header class="article-header">
-                <h1>Building MS Word in a Browser</h1>
+                <h1>Building MS Word in a Web Browser</h1>
                 <p>July 15, 2026</p>
-                <p class="subtitle">The Value of Good Evals</p>
                 <div class="article-actions">
                     <a class="demo-button" href="https://wordinweb-parity.callerinfo.workers.dev/">Check out the demo</a>
                     <a href="https://github.com/theRealestAEP/wordinweb">View the repo</a>
                 </div>
             </header>
 
-            <p>WordinWeb renders <code>.docx</code> files in the browser and edits them with near Microsoft Word parity.</p>
+            <p>WordInWeb renders <code>.docx</code> files in the browser and edits them with near Microsoft Word parity.</p>
+
+            <p>It also ships as an off the shelf React component: <code>npm install wordinweb</code>, drop <code>&lt;\DocxView /&gt;</code> on a page, and boom, DOCX files in your app. Flip the <code>editable</code> flag and now it&rsquo;s an editor. That&rsquo;s the whole pitch.</p>
 
             <p>This was inspired by the now-unavailable Eigenpal because I could not find a lightweight package that let me view/edit DOCX files on the web with even a smidge of parity with how they would look in Word. I was also curious about its approach: throwing the OOXML standards at Codex and letting that spin.</p>
 
@@ -30,7 +31,7 @@
 
             <p>But I had a different idea for approaching the problem.</p>
 
-            <p>My hypothesis: we can get near Microsoft Word parity if we create a reliable test framework that lets an agent implement an OOXML renderer, feed the renderer a DOCX, export the file as a PDF, rasterize it to a PNG, and compare the pixel diff. Boom: an easy, quantifiable comparison with the same source input and two measurable outputs. Then we can more or less let the agent make changes → evaluate → make changes → evaluate → succeed.</p>
+            <p>My hypothesis: we can get near Microsoft Word parity if we create a reliable test framework that lets an agent implement an OOXML renderer, feed the renderer a DOCX, export the file as a PDF, rasterize it to a PNG, and compare the pixel diff. Boom: an easy, quantifiable comparison with the same source input and two measurable outputs. Then we can more or less let the agent make changes -> evaluate -> make changes -> evaluate -> succeed.</p>
 
             <p>Just brute-force parity without collapsing quality as we go.</p>
 
@@ -43,9 +44,11 @@
 
             <p>For what it’s worth, I leaned primarily on Fable for planning and architecture, but GPT 5.6-SOL was the real workhorse here. I also didn’t run out of Codex usage :). Thanks, Sam!</p>
 
-            <h2>The layout engine</h2>
+            <h2>Project ground work</h2>
 
             <p><em>Just a quick note before we get into the juicy stuff. Credit: Fable.</em></p>
+
+            <p>The ground work is a layout engine that computes every position itself—every line break, every glyph, every table cell—and hands the browser absolutely positioned elements. The browser does zero layout of its own.</p>
 
             <p>That architecture is what makes parity reachable quickly. Every position comes from the engine and the browser adds none, so there is a single number to drive toward: the pixel difference between our render and Word’s.</p>
 
@@ -53,8 +56,8 @@
 
             <p>The big difference:</p>
 
-            <pre><code>Google Docs: layout → canvas drawing
-WordInWeb: layout → absolutely positioned DOM elements</code></pre>
+            <pre><code>Google Docs: layout -> canvas drawing
+WordInWeb: layout -> absolutely positioned DOM elements</code></pre>
 
             <p>It’s easier for an LLM to work with positioned DOM than with a canvas. That’s basically it. A canvas would require maintaining a scene graph, spatial index, and repaint system. Trusting Fable’s infinite wisdom, I went with positioned DOM elements for the initial implementation because it was faster to build. Rewriting this to use canvas would clearly improve performance, but it would have made the evaluation framework much more complicated.</p>
 
@@ -72,7 +75,7 @@ WordInWeb: layout → absolutely positioned DOM elements</code></pre>
 
             <p>The diff produces a score and an image. That gives an agent a closed loop with a definite end: render, diff, read the diff image, form a hypothesis about which Word rule is wrong, change the engine, and remeasure. Providing the source OOXML was also crucial. The number either drops or it doesn’t.</p>
 
-            <p>No human has to judge each attempt, so the loop can iterate on specifics until the score reaches near zero.</p>
+            <p>And I don't have to judge each attempt, so the loop can iterate on specifics until the score reaches near zero.</p>
 
             <figure class="article-figure">
                 <img src="../public/blog/math-parity.webp" alt="A three-panel comparison of a Word math document, the WordInWeb render, and the highlighted pixel difference." width="1960" height="842" loading="lazy">
@@ -117,7 +120,7 @@ WordInWeb: layout → absolutely positioned DOM elements</code></pre>
 
             <p>One of the first road bumps I hit when editing was performance. Keystrokes were so, so slow. Thus, the first evaluation metric was born: keypress latency! In retrospect, I got really lucky choosing this as my first evaluation. It wound up driving most of the downstream performance improvements, which could all be tied to a single KPI.</p>
 
-            <p>Initially, the naive pipeline reran everything on every keystroke: full model reparse, full document layout, and full DOM teardown and rebuild. On a 419-page contract, a mid-document keystroke took 5,005ms: 1,587ms for layout and 2,276ms for rendering.</p>
+            <p>Initially, the naive pipeline reran everything on every keystroke: full model reparse, full document layout, and full DOM teardown and rebuild. On a 419-page contract, a mid-document keystroke took 5,005ms. The full breakdown is in the table below.</p>
 
             <blockquote>
                 <p>Profiling ruled out the easy suspects first: a warm text measurer saved about 15%, and math layout was 1.3ms across 38 equations. The cost was the line-break and pagination walk over every page, plus the DOM rebuild.</p>
@@ -215,7 +218,7 @@ WordInWeb: layout → absolutely positioned DOM elements</code></pre>
 
             <h2>Conclusion</h2>
 
-            <p>Is this Microsoft Word on the web? No. Sorry, I know the title lied. There are probably edge cases I can’t even fathom—and I fathomed Microsoft Word’s 3D objects. But is it pretty good? I’d say yes. Being able to render and edit tables, math, and pictures seamlessly on the web is a win in my book. At least I haven’t found anything with this much coverage in the wild.</p>
+            <p>Is this Microsoft Word on the web? No. Sorry, I know the title lied. There are probably edge cases I can’t even fathom—and I fathomed Microsoft Word’s 3D objects. But is it pretty good? I’d say yes. Being able to render and edit tables, math, and pictures seamlessly on the web is a win in my book. At least I haven’t found anything with this much coverage in the wild that you can use as an off the shelf react component.</p>
 
             <p>It is also <em>incredibly easy</em> to continue improving this framework. Simply add the offending document fixture to the testing suite and iterate until that document is below the acceptable threshold, while ensuring none of the other documents break.</p>
 
