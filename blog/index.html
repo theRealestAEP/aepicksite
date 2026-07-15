@@ -56,7 +56,7 @@
             <pre><code>Google Docs: layout → canvas drawing
 DocxInWeb: layout → absolutely positioned DOM elements</code></pre>
 
-            <p>It’s easier for an LLM to work with positioned DOM than with a canvas. That’s basically it. A canvas would require maintaining a scene graph, spatial index, and repaint system. Trusting Fable’s good faith, I went with positioned DOM elements for the initial implementation because it was faster to build. Rewriting this to use canvas would clearly improve performance, but it would have made the evaluation framework much more complicated.</p>
+            <p>It’s easier for an LLM to work with positioned DOM than with a canvas. That’s basically it. A canvas would require maintaining a scene graph, spatial index, and repaint system. Trusting Fable’s infinite wisdom, I went with positioned DOM elements for the initial implementation because it was faster to build. Rewriting this to use canvas would clearly improve performance, but it would have made the evaluation framework much more complicated.</p>
 
             <h2>The training loop</h2>
 
@@ -95,7 +95,7 @@ DocxInWeb: layout → absolutely positioned DOM elements</code></pre>
 
             <p>Eventually, we run into the issue that we are really evaluating the PDF conversion’s ability to render the Word document. That was an acceptable margin of error for my purposes because, at that point, we are fighting differences in how platforms rasterize pixels.</p>
 
-            <p>A later optimization I wish I had added earlier was grouping fixtures into categories—general word processing, complex tables, math, other languages, formatting, graphics, and real-world documents—each with its own subscore. This allowed me to point agents and subagents at different categories. A coordinator could handle merging the subagent branches, and they usually didn’t step on each other’s toes.</p>
+            <p>An eval optimization I wish I had added earlier was grouping fixtures into categories. For example, we now have general word processing, complex tables, math, other languages, formatting, graphics, and real world documents each with its own subscore in the eval harness. This allowed me to point agents and subagents at different categories. A coordinator could handle merging the subagent branches, and they usually didn’t step on each other’s toes.</p>
 
             <h2>A niche Word rule the file does not explain: raising text can add no height</h2>
 
@@ -175,7 +175,7 @@ DocxInWeb: layout → absolutely positioned DOM elements</code></pre>
             <p>As I mentioned earlier, editing is still a work in progress and probably will be for a long time. For example, I know a table inside a table works, but a table inside a table inside a table inside four more tables? Who knows! Probably another test case worth adding.</p>
 
             <p>Having both the performance evaluation and the visual parity evaluation makes manual bug spotting and fixing much easier. If I notice behavior that would be very difficult to replicate in a programmatic test, I can simply describe the issue to the agent, and the agent will operate within the framework until the bug is fixed.</p>
-
+ 
             <h2>Where it stands</h2>
 
             <div class="table-wrap">
