@@ -2,13 +2,35 @@
     font-family: 'pressura mono.otf';
     src: url('./public/fonts/pressura_mono.otf') format('truetype');
     font-style: normal;
+    font-display: swap;
 }
 
 body {
     background-color: #FAF0E6;
+    color: #111;
     margin: 0;
     padding: 0;
     font-family: 'pressura mono.otf', sans-serif;
+}
+
+a {
+    color: inherit;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.18em;
+}
+
+a:hover {
+    text-decoration-thickness: 2px;
+}
+
+h1,
+h2,
+h3 {
+    line-height: 1.2;
+}
+
+h1 {
+    font-size: 1.5em;
 }
 
 .container {
@@ -25,4 +47,200 @@ body {
 .item {
     padding-top: 10px;
     padding-bottom: 10px;
+}
+
+.article-shell {
+    width: min(84%, 860px);
+    margin: 5% auto 10%;
+    font-size: 1.05rem;
+    line-height: 1.7;
+}
+
+.back-link {
+    display: inline-block;
+    margin-bottom: 3rem;
+}
+
+.article-header {
+    margin-bottom: 3.5rem;
+}
+
+.article-header h1 {
+    max-width: 18ch;
+    margin-bottom: 0.25em;
+    font-size: clamp(2rem, 6vw, 4.25rem);
+    letter-spacing: -0.04em;
+}
+
+.subtitle {
+    margin: 0;
+    font-size: clamp(1.15rem, 3vw, 1.65rem);
+}
+
+.article-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.demo-button {
+    padding: 0.55rem 0.9rem;
+    border: 2px solid currentColor;
+    background: #111;
+    color: #FAF0E6;
+    text-decoration: none;
+}
+
+.demo-button:hover {
+    background: transparent;
+    color: #111;
+}
+
+.article-figure {
+    margin: 2.5rem 0;
+}
+
+.article-figure img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.hero-figure {
+    margin-top: 2.5rem;
+}
+
+.article-figure figcaption {
+    margin-top: 0.65rem;
+    font-size: 0.85rem;
+    line-height: 1.45;
+}
+
+.dashboard-figure {
+    width: min(100%, 680px);
+    margin-right: auto;
+    margin-left: auto;
+}
+
+.meme {
+    width: min(100%, 680px);
+    margin-right: auto;
+    margin-left: auto;
+    background: #111;
+    color: #fff;
+}
+
+.meme-caption {
+    padding: 0.75rem 1rem;
+    font-size: clamp(1rem, 3vw, 1.45rem);
+    font-weight: bold;
+    line-height: 1.2;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+.postscript {
+    margin-top: 4rem;
+    padding: 1.5rem;
+    border: 2px solid currentColor;
+}
+
+.postscript h2 {
+    margin: 0 0 1.25rem;
+}
+
+.ascii-art {
+    width: fit-content;
+    max-width: 100%;
+    margin: 1.75rem auto;
+    padding: 0;
+    overflow-x: auto;
+    border: 0;
+    font-size: clamp(0.65rem, 2vw, 0.9rem);
+    line-height: 1.2;
+    white-space: pre-line;
+}
+
+.postscript-signoff {
+    font-weight: bold;
+    text-align: center;
+}
+
+article h2 {
+    margin-top: 3.5rem;
+    font-size: 1.6rem;
+}
+
+article h3 {
+    margin-top: 2.5rem;
+    font-size: 1.2rem;
+}
+
+article p,
+article ul,
+article ol,
+article table,
+article pre {
+    margin: 1.25rem 0;
+}
+
+article li + li {
+    margin-top: 0.6rem;
+}
+
+article blockquote {
+    margin: 1.5rem 0;
+    padding-left: 1.25rem;
+    border-left: 2px solid currentColor;
+}
+
+article code {
+    font: inherit;
+    font-size: 0.92em;
+}
+
+article pre {
+    overflow-x: auto;
+    padding: 1rem;
+    border: 1px solid currentColor;
+}
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    padding: 0.7rem;
+    border: 1px solid currentColor;
+    text-align: left;
+    vertical-align: top;
+}
+
+th:not(:first-child),
+td:not(:first-child) {
+    text-align: right;
+}
+
+@media (max-width: 600px) {
+    .container {
+        margin-top: 10%;
+        font-size: large;
+    }
+
+    .article-shell {
+        width: 88%;
+        margin-top: 8%;
+    }
+
+    .back-link {
+        margin-bottom: 2rem;
+    }
 }

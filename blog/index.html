@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="How DocxInWeb uses visual parity tests and editing benchmarks to approach Microsoft Word rendering in the browser.">
+    <title>How DocxInWeb reaches near Microsoft Word parity — Alex Pickett</title>
+    <link rel="stylesheet" href="../index.css">
+</head>
+<body>
+    <main class="article-shell">
+        <article>
+            <header class="article-header">
+                <h1>Building MS Word in a Browser</h1>
+                <p class="subtitle">The Value of Good Evals</p>
+                <div class="article-actions">
+                    <a class="demo-button" href="https://wordinweb-parity.callerinfo.workers.dev/">Check out the demo</a>
+                    <a href="https://github.com/theRealestAEP/wordinweb">View the repo</a>
+                </div>
+            </header>
+
+            <p>DocxInWeb renders <code>.docx</code> files in the browser and edits them with near Microsoft Word parity.</p>
+
+            <p>This was inspired by the now-unavailable Eigenpal because I could not find a lightweight package that let me view DOCX files on the web with even a smidge of parity with how they would look in Word. I was also curious about its approach: throwing the OOXML standards at Codex and letting that spin.</p>
+
+            <p>One major side effect that I imagine they ran into was whack-a-mole bugs: fix one thing, break another. The OOXML standard is many thousands of pages and, from glancing at it and reading comments online, not so standard. Looping over this standard might yield a loose implementation that can render DOCX files, but it would effectively be the “Codex” flavor because there is so much nuance and the documentation is basically a gigantic unreliable narrator.</p>
+
+
+            <p>But I had a different idea for approaching the problem.</p>
+
+            <p>My hypothesis: we can get near Microsoft Word parity if we create a reliable test framework that lets an agent implement an OOXML renderer, feed the renderer a DOCX, export the file as a PDF, rasterize it to a PNG, and compare the pixel diff. Boom: an easy, quantifiable comparison with the same source input and two measurable outputs. Then we can more or less let the agent make changes → evaluate → make changes → evaluate → succeed.</p>
+
+            <p>Just brute-force parity without collapsing quality as we go.</p>
+
+
+            <p>I’m sure someone is thinking, “Congrats, you just learned xyz from first principles.” To that I say: bold of you to assume I learned anything.</p>
+
+            <p>Anyways, I am the proud owner of a Microsoft Word subscription, so I figured I’d get my money’s worth. I created, generated, and found a large set of fixture DOCX files that cover everything from equations and templates to tables and even Microsoft Word’s 3D renderings. I didn’t know those existed, but I am very excited to have discovered them.</p>
+
+            <p>I set up the evaluation harness and let that baby rip for about a week.</p>
+
+            <p>For what it’s worth, I leaned primarily on Fable for planning and architecture, but GPT 5.6-SOL was the real workhorse here. I also didn’t run out of Codex usage :). Thanks, Sam!</p>
+
+            <h2>The layout engine</h2>
+
+            <p><em>Just a quick note before we get into the juicy stuff. Credit: Fable.</em></p>
+
+            <p>That architecture is what makes parity reachable quickly. Every position comes from the engine and the browser adds none, so there is a single number to drive toward: the pixel difference between our render and Word’s.</p>
+
+            <p><em>Why not render it how Google Docs renders things?</em></p>
+
+            <p>The big difference:</p>
+
+            <pre><code>Google Docs: layout → canvas drawing
+DocxInWeb: layout → absolutely positioned DOM elements</code></pre>
+
+            <p>It’s easier for an LLM to work with positioned DOM than with a canvas. That’s basically it. A canvas would require maintaining a scene graph, spatial index, and repaint system. Trusting Fable’s good faith, I went with positioned DOM elements for the initial implementation because it was faster to build. Rewriting this to use canvas would clearly improve performance, but it would have made the evaluation framework much more complicated.</p>
+
+            <h2>The training loop</h2>
+
+            <p>The test and loop itself is actually very simple.</p>
+
+            <p>For every fixture:</p>
+
+            <ol>
+                <li>Word exports the <code>.docx</code> to PDF.</li>
+                <li>DocxInWeb renders the same file headlessly.</li>
+                <li>Both rasterize to PNG at the same DPI and compare page by page.</li>
+            </ol>
+
+            <p>The diff produces a score and an image. That gives an agent a closed loop with a definite end: render, diff, read the diff image, form a hypothesis about which Word rule is wrong, change the engine, and remeasure. Providing the source OOXML was also crucial. The number either drops or it doesn’t.</p>
+
+            <p>No human has to judge each attempt, so the loop can iterate on specifics until the score reaches near zero.</p>
+
+            <figure class="article-figure">
+                <img src="../public/blog/math-parity.webp" alt="A three-panel comparison of a Word math document, the DocxInWeb render, and the highlighted pixel difference." width="1960" height="842" loading="lazy">
+                <figcaption>Word on the left, DocxInWeb in the middle, and the remaining pixel diff on the right.</figcaption>
+            </figure>
+
+            <h2>Measuring layout, weight, and color separately</h2>
+
+            <p>A raw pixel diff turned out to be an incredibly suboptimal test. I initially neglected to ask, “What is the difference between a diff caused by color, font antialiasing, or structure?” The first few iterations floundered because the evaluation framework basically just kept saying “bad” and relied on the vision model’s perception, which was not quite capable enough to handle the layout piece.</p>
+
+            <p>So I broke the evaluation framework into three measurements:</p>
+
+            <ul>
+                <li><strong>Layout overlap:</strong> Are the same words, lines, tables, and images in the same places? The test aligns the two pages, turns them into simple maps of content and empty space, and allows a small positional tolerance. Content with no nearby match counts as a structural difference. A separate vertical search catches text that wrapped onto a different line.</li>
+                <li><strong>Weight:</strong> Is the rendered content lighter or heavier than Word’s version? This catches problems such as the correct font appearing in the correct place but with thicker strokes. Text, images, table fills, and table rules are also measured separately where possible.</li>
+                <li><strong>Color:</strong> Does the visible ink have the same color as the Word rendering? This uses perceptual color distance, so a color error is measured as a color error rather than being mistaken for missing content.</li>
+            </ul>
+
+            <p>Keeping these measurements separate made the parity loop much more useful. If a page had good overlap but the text was too bold, we could tune font rendering without disturbing pagination. If the weight was right but the color was wrong, we could work on color handling without treating the page as structurally broken. The report summarizes the dominant difference as <code>clean</code>, <code>alignment</code>, <code>weight</code>, <code>color</code>, or <code>structural</code> and links to the visual diff for inspection.</p>
+
+            <p>Eventually, we run into the issue that we are really evaluating the PDF conversion’s ability to render the Word document. That was an acceptable margin of error for my purposes because, at that point, we are fighting differences in how platforms rasterize pixels.</p>
+
+            <p>A later optimization I wish I had added earlier was grouping fixtures into categories—general word processing, complex tables, math, other languages, formatting, graphics, and real-world documents—each with its own subscore. This allowed me to point agents and subagents at different categories. A coordinator could handle merging the subagent branches, and they usually didn’t step on each other’s toes.</p>
+
+            <h2>A niche Word rule the file does not explain: raising text can add no height</h2>
+
+            <p><em>Credit: Fable.</em></p>
+
+            <p>One math-heavy document contained three figures built in an unusual way. Each figure was an inline image followed by a tiny label on the same line. The label had <code>w:position="320"</code>, which tells Word to raise it by 160pt.</p>
+
+            <p>The engine treated that as two heights added together: the roughly 248px image plus another 213px for the raised label. Each figure line became about 465px tall, even though the label stayed within the image’s vertical span. After three figures, the document had grown from Word’s 17 pages to 18.</p>
+
+            <p>The OOXML says how far to move the label, but it does not explain how that move affects the surrounding line. Measurements from Word’s PDF revealed the rule: the line must be only as tall as its tallest visible extent. If the raised text still fits inside the image’s existing height, it adds nothing. In other words, Word uses the larger of the image height and the raised text height; it does not add them together.</p>
+
+            <p>Implementing that rule restored the correct 17-page count. Structural error on the three figure pages fell from 88%, 90%, and 99% to 9%, 4%, and 17%. It is the kind of behavior that would be almost impossible to guess from the file alone, but becomes obvious once the parity test points to the exact pages and the Word export provides something measurable.</p>
+
+            <h2>Looping framework for editing and performance</h2>
+
+            <p>A DOCX viewer with Microsoft Word visual parity is meh. There are a bunch of ways to render DOCX on the web that are probably simpler and cleaner with a tiny backend process running OpenOffice. Also, I wanted more!</p>
+
+            <p>So I added editing after I had a baseline for visual parity. I often kicked off editing evaluations after introducing new fixtures that needed visual optimization. I think this was likely the most efficient approach, but editing is clearly a different beast altogether.</p>
+
+            <p>One of the first road bumps I hit when editing was performance. Keystrokes were so, so slow. Thus, the first evaluation metric was born: keypress latency! In retrospect, I got really lucky choosing this as my first evaluation. It wound up driving most of the downstream performance improvements, which could all be tied to a single KPI.</p>
+
+            <p>Initially, the naive pipeline reran everything on every keystroke: full model reparse, full document layout, and full DOM teardown and rebuild. On a 419-page contract, a mid-document keystroke took 5,005ms: 1,587ms for layout and 2,276ms for rendering.</p>
+
+            <blockquote>
+                <p>Profiling ruled out the easy suspects first: a warm text measurer saved about 15%, and math layout was 1.3ms across 38 equations. The cost was the line-break and pagination walk over every page, plus the DOM rebuild.</p>
+                <p>— GPT 5.6-SOL</p>
+            </blockquote>
+
+            <p>The solution was simple in principle: after an edit, redo only the work that could have changed.</p>
+
+            <ol>
+                <li><strong>Lay out only the affected part of the document.</strong> Pages before and after the change are reused instead of paginating the entire document again.</li>
+                <li><strong>Keep unchanged pages in the DOM.</strong> The browser updates only the changed pages instead of removing and recreating hundreds of page elements.</li>
+                <li><strong>Tell the layout engine where the edit happened.</strong> The editor marks the current block and its neighbors, avoiding a scan of the whole document.</li>
+            </ol>
+
+            <p>The measured improvement was substantial, using the headless median over 20 keystrokes:</p>
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col">Measurement</th>
+                            <th scope="col">Before</th>
+                            <th scope="col">After</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Complete keystroke in a 419-page contract</td>
+                            <td>5,005ms</td>
+                            <td>~250ms</td>
+                        </tr>
+                        <tr>
+                            <td>Mid-document layout</td>
+                            <td>1,158ms</td>
+                            <td>151ms</td>
+                        </tr>
+                        <tr>
+                            <td>DOM rendering</td>
+                            <td>1,019ms</td>
+                            <td>53ms</td>
+                        </tr>
+                        <tr>
+                            <td>Keystroke in a 17-page math document</td>
+                            <td>212ms</td>
+                            <td>~72ms</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p>But speed only matters if the optimized path produces the same document. As with visual parity, the question is: does fixing one bug introduce another? Whack-a-mole. As editing fixes are implemented, we add deterministic tests to the editing evaluation framework wherever possible. This way, we can fight regressions.</p>
+
+            <p>The killer combo was visual parity evaluation plus editing regression testing with direct feedback. These automatic evaluations give agents more than enough juice to narrowly fix issues and add features without blowing up what is actually a really complicated implementation.</p>
+
+            <p>As I mentioned earlier, editing is still a work in progress and probably will be for a long time. For example, I know a table inside a table works, but a table inside a table inside a table inside four more tables? Who knows! Probably another test case worth adding.</p>
+
+            <p>Having both the performance evaluation and the visual parity evaluation makes manual bug spotting and fixing much easier. If I notice behavior that would be very difficult to replicate in a programmatic test, I can simply describe the issue to the agent, and the agent will operate within the framework until the bug is fixed.</p>
+
+            <h2>Where it stands</h2>
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col">Metric</th>
+                            <th scope="col">Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Word pages measured</td>
+                            <td>1,154 across 91 fixtures</td>
+                        </tr>
+                        <tr>
+                            <td>Mean structural severity</td>
+                            <td>0.026%</td>
+                        </tr>
+                        <tr>
+                            <td>Worst single page</td>
+                            <td>3.95% (<code>probe3-thai</code> p1)</td>
+                        </tr>
+                        <tr>
+                            <td>Pages at or above 1%</td>
+                            <td>2 (Thai 3.95%, Indic 1.30%)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p>Both pages above 1% use licensed fonts we cannot legally ship: Thai DokChampa—Fable really didn’t want to bootleg a font—and Tamil Vijaya approximated by a scaled Latha. The rest is within the antialiasing floor between two rasterizers drawing the same layout. Overall, I’m pretty pleased.</p>
+
+            <p>I can render and edit everything from California legal complaints and image catalogues to large tables and complex LaTeX math equations.</p>
+
+            <p>Room for improvement? Always.</p>
+
+            <h2>Conclusion</h2>
+
+            <p>Is this Microsoft Word on the web? No. Sorry, I know the title lied. There are probably edge cases I can’t even fathom—and I fathomed Microsoft Word’s 3D objects. But is it pretty good? I’d say yes. Being able to render and edit tables, math, and pictures seamlessly on the web is a win in my book. At least I haven’t found anything with this much coverage in the wild.</p>
+
+            <p>It is also <em>incredibly easy</em> to continue improving this framework. Simply add the offending document fixture to the testing suite and iterate until that document is below the acceptable threshold, while ensuring none of the other documents break.</p>
+
+            <p>Improvement is now mostly a function of money and the time it takes for an agent to spin on the problem.</p>
+
+            <p>So what’s the takeaway? <code>/goal</code> is really powerful, but <code>/goal</code> with a meaningful, quantifiable target that an agent can evaluate against is like having superpowers. Honestly, I wish I had spent more time setting up the evaluation harness from the beginning.</p>
+
+            <aside class="postscript" aria-labelledby="postscript-title">
+                <h2 id="postscript-title">P.S. Is this AI slop?</h2>
+
+                <p>One thing that’s been on my mind: does this count as “AI slop”?</p>
+
+                <p>My internal definition of AI slop is code or output that isn’t reviewed by a human before being unleashed on the world, leaving everyone else to bear the burden of enduring it. This project is that—but it also isn’t.</p>
+
+                <p>Slop can be shaped and molded. Think of a hot dog. Hot dogs are slop, but the slop is contained, served on a bun, and tastes ok. I think this project lands in the "hot dog" - "sausage" category: contained slop, molded by evals, and relatively well tested.</p>
+
+                <pre class="ascii-art" aria-label="ASCII art of a hot dog"> ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+                    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+                    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+                    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣾⣿⠟⠋⠙⠻⣦⡀⠀
+                    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣾⣿⠟⠁⠀⢀⡀⠀⠘⠇⠀
+                    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣴⣿⠟⢁⣤⡾⠛⠋⣴⣿⣷⣄⠀
+                    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣤⣾⡿⠋⠀⢀⣾⠃⠀⣠⣾⣿⣿⣿⡟⠀
+                    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣴⣾⣿⠟⢉⣀⣀⣤⡾⠃⣠⣾⣿⣿⣿⣿⠟⠁⠀
+                    ⠀⠀⠀⠀⠀⣀⣠⣴⣾⣿⣿⠟⠋⣠⡾⠛⠉⠉⠁⣠⣾⣿⣿⣿⣿⣿⠃⠀⠀⠀
+                    ⠀⠀⢰⣾⣿⣿⣿⠿⠛⠉⠀⠀⣰⡟⠀⠀⢀⣤⣾⣿⣿⣿⣿⣿⠟⠁⠀⠀⠀⠀
+                    ⠀⢠⡿⠛⠉⢉⡴⠒⠒⠒⠚⠛⠉⣀⣤⣶⣿⣿⣿⣿⣿⡿⠋⠁⠀⠀⠀⠀⠀⠀
+                    ⠀⢿⡇⠀⠠⠟⠀⢀⣀⣤⣴⣾⣿⣿⣿⣿⣿⣿⣿⠟⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀
+                    ⠀⠈⢷⡄⢀⣶⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠟⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀                    ⠀⠀⠈⢿⣿⣿⣿⣿⣿⠿⠟⠋⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+                    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+                    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀</pre>
+
+                <p class="postscript-signoff">- hot dog ware.</p>
+            </aside>
+        </article>
+    </main>
+</body>
+</html>
