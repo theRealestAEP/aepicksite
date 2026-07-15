@@ -3,8 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="How DocxInWeb uses visual parity tests and editing benchmarks to approach Microsoft Word rendering in the browser.">
-    <title>How DocxInWeb reaches near Microsoft Word parity</title>
+    <meta name="description" content="How WordInWeb uses visual parity tests and editing benchmarks to approach Microsoft Word rendering in the browser.">
+    <title>How WordInWeb reaches near Microsoft Word parity</title>
  
     <link rel="stylesheet" href="../index.css">
 </head>
@@ -21,9 +21,9 @@
                 </div>
             </header>
 
-            <p>DocxInWeb renders <code>.docx</code> files in the browser and edits them with near Microsoft Word parity.</p>
+            <p>WordinWeb renders <code>.docx</code> files in the browser and edits them with near Microsoft Word parity.</p>
 
-            <p>This was inspired by the now-unavailable Eigenpal because I could not find a lightweight package that let me view DOCX files on the web with even a smidge of parity with how they would look in Word. I was also curious about its approach: throwing the OOXML standards at Codex and letting that spin.</p>
+            <p>This was inspired by the now-unavailable Eigenpal because I could not find a lightweight package that let me view/edit DOCX files on the web with even a smidge of parity with how they would look in Word. I was also curious about its approach: throwing the OOXML standards at Codex and letting that spin.</p>
 
             <p>One major side effect that I imagine they ran into was whack-a-mole bugs: fix one thing, break another. The OOXML standard is many thousands of pages and, from glancing at it and reading comments online, not so standard. Looping over this standard might yield a loose implementation that can render DOCX files, but it would effectively be the “Codex” flavor because there is so much nuance and the documentation is basically a gigantic unreliable narrator.</p>
 
@@ -54,7 +54,7 @@
             <p>The big difference:</p>
 
             <pre><code>Google Docs: layout → canvas drawing
-DocxInWeb: layout → absolutely positioned DOM elements</code></pre>
+WordInWeb: layout → absolutely positioned DOM elements</code></pre>
 
             <p>It’s easier for an LLM to work with positioned DOM than with a canvas. That’s basically it. A canvas would require maintaining a scene graph, spatial index, and repaint system. Trusting Fable’s infinite wisdom, I went with positioned DOM elements for the initial implementation because it was faster to build. Rewriting this to use canvas would clearly improve performance, but it would have made the evaluation framework much more complicated.</p>
 
@@ -66,7 +66,7 @@ DocxInWeb: layout → absolutely positioned DOM elements</code></pre>
 
             <ol>
                 <li>Word exports the <code>.docx</code> to PDF.</li>
-                <li>DocxInWeb renders the same file headlessly.</li>
+                <li>WordInWeb renders the same file headlessly.</li>
                 <li>Both rasterize to PNG at the same DPI and compare page by page.</li>
             </ol>
 
@@ -75,8 +75,8 @@ DocxInWeb: layout → absolutely positioned DOM elements</code></pre>
             <p>No human has to judge each attempt, so the loop can iterate on specifics until the score reaches near zero.</p>
 
             <figure class="article-figure">
-                <img src="../public/blog/math-parity.webp" alt="A three-panel comparison of a Word math document, the DocxInWeb render, and the highlighted pixel difference." width="1960" height="842" loading="lazy">
-                <figcaption>Word on the left, DocxInWeb in the middle, and the remaining pixel diff on the right.</figcaption>
+                <img src="../public/blog/math-parity.webp" alt="A three-panel comparison of a Word math document, the WordInWeb render, and the highlighted pixel difference." width="1960" height="842" loading="lazy">
+                <figcaption>Word on the left, WordInWeb in the middle, and the remaining pixel diff on the right.</figcaption>
             </figure>
 
             <h2>Measuring layout, weight, and color separately</h2>
