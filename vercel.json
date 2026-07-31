@@ -1,8 +1,18 @@
 {
     "redirects": [
         {
+            "source": "/blog",
+            "destination": "/blog/collaborative-docx-editing/",
+            "permanent": false
+        },
+        {
             "source": "/collaborative-editing",
-            "destination": "/blog/collaborative-editing/",
+            "destination": "/blog/collaborative-docx-editing/",
+            "permanent": true
+        },
+        {
+            "source": "/blog/collaborative-editing",
+            "destination": "/blog/collaborative-docx-editing/",
             "permanent": true
         },
         {

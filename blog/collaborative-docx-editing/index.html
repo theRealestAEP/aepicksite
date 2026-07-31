@@ -5,18 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="How Collab WIW uses lockstep architecture, browser-owned documents, and end-to-end encryption for collaborative DOCX editing.">
     <title>What does an RTS game have to do with a collaborative DOCX editor?</title>
-    <link rel="canonical" href="https://www.aepick.me/blog/collaborative-editing/">
+    <link rel="canonical" href="https://www.aepick.me/blog/collaborative-docx-editing/">
 
     <link rel="stylesheet" href="/index.css">
 </head>
 <body>
     <main class="blog-shell">
         <aside class="blog-sidebar">
-            <a class="blog-home" href="/">← Alex Pickett</a>
+            <a class="blog-home" href="/" aria-label="Back to home">←</a>
 
             <nav class="sidebar-section" aria-label="Blog posts">
                 <p class="sidebar-label">Posts</p>
-                <a class="post-link" href="/blog/collaborative-editing/" aria-current="page">
+                <a class="post-link" href="/blog/collaborative-docx-editing/" aria-current="page">
                     <strong>What does an RTS game have to do with a collaborative DOCX editor?</strong>
                     <span>July 30, 2026 · Latest</span>
                 </a>
@@ -64,7 +64,7 @@
 
             <p>Then I made it collaborative. Colla Word In Web! Collab WIW going forward.</p>
 
-            <p>The obvious version would put the document on a server and make that server the authority. That works, but it also gives the server the document. I wanted a public demo with no accounts, no document database, and no plaintext document on the backend. I don&rsquo;t want your DATA, I don&rsquo;t want your email, I don&rsquo;t want your IP, none of it!</p>
+            <p>The obvious solution here is to use operational transform like Google Docs does, or maybe a CRDT like other web-first DOCX editors use. But I wanted the server to be super lightweight, so no CRDT. I also wanted the server to be non-custodial and end-to-end encrypted. I don&rsquo;t want your data, sorry.</p>
 
             <h2 id="tldr">TLDR</h2>
 
@@ -171,7 +171,7 @@
                 <li>the visible document adds local pending edits on top.</li>
             </ul>
 
-            <p>When I type, WordInWeb applies the edit to the visible document first and sends it in parallel. If an earlier remote edit changed its target, the client rolls back the state, transforms the pending edit, and replays it so the document stays visually synced.</p>
+            <p>When you type, Collab WIW applies the edit to the visible document first and sends it in parallel. If an earlier remote edit changed its target, the client rolls back the state, transforms the pending edit, and replays it so the document stays visually synced.</p>
 
             <p>The server remains authoritative about order. The browser remains responsive about presentation.</p>
 
@@ -343,7 +343,7 @@
 
             <p>An agent can work with the same small editing commands that collaboration already uses.</p>
 
-            <p>Those edits can also happen live while a person works in the same document. IMO, that is the interesting part: the agent works inside the live document, and you can see every change as it happens.</p>
+            <p>Because the agent only really needs to send intents, it should be a lot easier to create a small DSL for it to pump out edits that won&rsquo;t break the document.</p>
 
             <p class="article-separator" aria-hidden="true">----------</p>
 
