@@ -1,0 +1,24 @@
+{
+    "redirects": [
+        {
+            "source": "/blog",
+            "destination": "/blog/collaborative-docx-editing/",
+            "permanent": false
+        },
+        {
+            "source": "/collaborative-editing",
+            "destination": "/blog/collaborative-docx-editing/",
+            "permanent": true
+        },
+        {
+            "source": "/blog/collaborative-editing",
+            "destination": "/blog/collaborative-docx-editing/",
+            "permanent": true
+        },
+        {
+            "source": "/building-ms-word-in-a-web-browser",
+            "destination": "/blog/building-ms-word-in-a-web-browser/",
+            "permanent": true
+        }
+    ]
+}
