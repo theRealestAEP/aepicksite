@@ -186,6 +186,27 @@ h1 {
     letter-spacing: 0.08em;
 }
 
+.blog-index-entry + .article-separator {
+    margin-bottom: 3.5rem;
+}
+
+.blog-index-entry > p:first-child {
+    color: rgba(17, 17, 17, 0.58);
+    font-size: 0.85rem;
+}
+
+.blog-index-entry h2 {
+    max-width: 28ch;
+    margin-bottom: 0.5rem;
+    font-size: clamp(1.4rem, 3vw, 2rem);
+    line-height: 1.25;
+}
+
+.blog-slug {
+    font-family: "Pressura Mono", monospace;
+    font-size: 0.85rem;
+}
+
 .subtitle {
     margin: 0;
     font-size: clamp(1.15rem, 3vw, 1.65rem);

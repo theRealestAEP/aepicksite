@@ -1,0 +1,14 @@
+{
+    "redirects": [
+        {
+            "source": "/collaborative-editing",
+            "destination": "/blog/collaborative-editing/",
+            "permanent": true
+        },
+        {
+            "source": "/building-ms-word-in-a-web-browser",
+            "destination": "/blog/building-ms-word-in-a-web-browser/",
+            "permanent": true
+        }
+    ]
+}
