@@ -262,6 +262,13 @@
 
             <p>You can keep editing when the server disappears. Each edit applies to your local document and gets added to an offline list in browser storage. That list also records which version of the room you were editing.</p>
 
+            <aside class="article-callout" aria-label="Current offline editing limitation">
+                <p><strong>Offline reconciliation today</strong></p>
+                <p>Right now any shared edit marks the offline copy as diverged, even when the edits affect different content i.e. no conflicting changes. If the offline tail exceeds 50 intents, the system saves the entire copy as a draft.</p>
+                <p>In a future update I will compare stable document targets and text ranges to create conflict groups. This way independent non-conflicting edits can merge normally, and overlapping edits will become suggestions.</p>
+                <p>TBH though the point again of this project is to quickly share and make edits with other collaborators ad-hoc, it&rsquo;s not designed to be a full house managed editing system.</p>
+            </aside>
+
             <p>When the connection comes back, there are a few possibilities:</p>
 
             <ol>
