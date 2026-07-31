@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="How Collab WIW uses lockstep architecture, browser-owned documents, and end-to-end encryption for collaborative DOCX editing.">
+    <title>What does an RTS game have to do with a collaborative DOCX editor?</title>
+
+    <link rel="stylesheet" href="../../index.css">
+</head>
+<body>
+    <main class="blog-shell">
+        <aside class="blog-sidebar">
+            <a class="blog-home" href="../../">← Alex Pickett</a>
+
+            <nav class="sidebar-section" aria-label="Blog posts">
+                <p class="sidebar-label">Posts</p>
+                <a class="post-link" href="./" aria-current="page">
+                    <strong>What does an RTS game have to do with a collaborative DOCX editor?</strong>
+                    <span>July 30, 2026 · Latest</span>
+                </a>
+                <span class="catalogue-separator" aria-hidden="true">----------</span>
+                <a class="post-link" href="../">
+                    <strong>Building MS Word in a Web Browser</strong>
+                    <span>July 15, 2026</span>
+                </a>
+            </nav>
+
+            <nav class="sidebar-section" aria-label="On this page">
+                <p class="sidebar-label">On this page</p>
+                <a class="outline-link outline-link-title" href="#article">Collaborative DOCX editing</a>
+                <a class="outline-link outline-link-sub" href="#tldr">TLDR</a>
+                <a class="outline-link outline-link-sub" href="#definitions">Definitions</a>
+                <a class="outline-link outline-link-sub" href="#rts">The RTS part</a>
+                <a class="outline-link outline-link-sub" href="#lockstep">Lockstep architecture</a>
+                <a class="outline-link outline-link-sub" href="#conflicts">Editing conflicts</a>
+                <a class="outline-link outline-link-sub" href="#ot-lite">OT-lite</a>
+                <a class="outline-link outline-link-sub" href="#optimistic-typing">Optimistic typing</a>
+                <a class="outline-link outline-link-sub" href="#performance">Performance</a>
+                <a class="outline-link outline-link-sub" href="#rejoining">Rejoining and stable URLs</a>
+                <a class="outline-link outline-link-sub" href="#media">Media</a>
+                <a class="outline-link outline-link-sub" href="#encryption">End-to-end encryption</a>
+                <a class="outline-link outline-link-sub" href="#why-it-works">Why it works</a>
+                <a class="outline-link outline-link-sub" href="#whats-next">What&rsquo;s next?</a>
+            </nav>
+        </aside>
+
+        <article class="article-shell" id="article">
+            <header class="article-header">
+                <p class="article-kicker">WordInWeb · Collaboration</p>
+                <h1>What does an RTS game have to do with a collaborative DOCX editor?</h1>
+                <p class="article-dek">Secure lockstep architecture with intent-based simulations for multiple clients and an ultra-lightweight backend. Or something like that. Very thrilling title.</p>
+                <p>July 30, 2026</p>
+                <div class="article-actions">
+                    <a class="demo-button" href="https://collab.word-in-web.com/">Try the live demo</a>
+                    <a href="https://github.com/theRealestAEP/wordinweb">View the repo</a>
+                </div>
+            </header>
+
+            <p>My hypothesis was that a super lightweight server could receive edit intents and serve valid intents to everybody working on a document.</p>
+
+            <p>I recently <a href="../">built a DOCX editor that runs in the browser</a>. It parses OOXML, lays out pages, and edits the document without converting it to another format.</p>
+
+            <p>Then I made it collaborative. Colla Word In Web! Collab WIW going forward.</p>
+
+            <p>The obvious version would put the document on a server and make that server the authority. That works, but it also gives the server the document. I wanted a public demo with no accounts, no document database, and no plaintext document on the backend. I don&rsquo;t want your DATA, I don&rsquo;t want your email, I don&rsquo;t want your IP, none of it!</p>
+
+            <h2 id="tldr">TLDR</h2>
+
+            <p>Collab WIW is a WYSIWYG DOCX editor with MS Word parity that supports real-time collaborative editing. Its collaboration layer is end-to-end encrypted and uses ephemeral rooms with stable share URLs. The server keeps each live room in memory, while every browser keeps a durable copy of the document and its edit history. A saved browser copy can bring the room back online at the same URL and reconcile offline edits when collaborators return.</p>
+
+            <h2 id="definitions">Definitions</h2>
+
+            <p>Some quick ones:</p>
+
+            <ul>
+                <li><strong>Node:</strong> One item in the document outline. A paragraph is a node. A table is a node. A formatted piece of text is a node.</li>
+                <li><strong>Text run:</strong> A piece of text with the same formatting. In &ldquo;Hello world,&rdquo; &ldquo;Hello&rdquo; and &ldquo;world&rdquo; are separate runs if &ldquo;world&rdquo; is bold.</li>
+            </ul>
+
+            <h2 id="rts">The &ldquo;RTS&rdquo; part</h2>
+
+            <p>My inspiration was <a href="https://openfront.io/">OpenFront</a>! GOATED game. OpenFront serves as the authoritative game state for all clients. Each client sends an intent, and the server decides whether that intent is valid. The game state is a deterministic simulation based on the intent history.</p>
+
+            <p>Collab WIW follows the same shape:</p>
+
+            <ol>
+                <li>A user applies an edit, and it renders immediately for them.</li>
+                <li>The browser sends the intent to the collaboration server.</li>
+                <li>The server assigns the next sequence number.</li>
+                <li>Every browser processes the same ordered stream.</li>
+                <li>Every browser derives the same document.</li>
+            </ol>
+
+            <p>Basically, it is a deterministic state machine applied to a word processor.</p>
+
+            <h2 id="lockstep">Lockstep architecture</h2>
+
+            <p>The idea for E2EE came later. I started with a functional collaborative editor, so there are two authority paths in the collaboration package: plaintext mode and encrypted mode. The demo uses encrypted mode, so that is what I am going to write about from here.</p>
+
+            <p>Plaintext mode is straightforward and works more like traditional Operational Transform. The server runs <code>DocumentSession</code>. It transforms, validates, applies, and broadcasts each edit.</p>
+
+            <p>In encrypted mode, the server is a totally blind sequencer. It checks the visible envelope metadata and clear abuse, assigns a sequence number, and relays the ciphertext to the other browsers in the session.</p>
+
+            <p>When users in a Collab room receive an intent from the server, their browser:</p>
+
+            <ol>
+                <li>decrypts the padded envelope;</li>
+                <li>feeds it into the local <code>DocumentSession</code> mirror;</li>
+                <li>runs the same transform, intent-validation, and apply pipeline;</li>
+                <li>sends the canonical result to the visible editor replica.</li>
+            </ol>
+
+            <p>Basically, intent validation gets offloaded to each local browser.</p>
+
+            <p>OOXML is a structured, addressable tree. All the server really has to do is make sure every client sees the same encrypted envelopes in the same order.</p>
+
+            <h2 id="conflicts">Editing conflicts, race conditions, and contention resolution</h2>
+
+            <p>A scenario: I edit character 400 while somebody else deletes a paragraph near the start. By the time my edit arrives, character 400 could mean something totally different.</p>
+
+            <p>Collab WIW addresses content with stable IDs for the paragraph, table, and text run. Each character offset is local to that run:</p>
+
+            <pre><code>paragraph id + run id + offset</code></pre>
+
+            <p>The IDs live in a sidecar table.</p>
+
+            <h3>So what is the sidecar table?</h3>
+
+            <p>OOXML does not give every paragraph, table, and text section a positional stable ID that I can safely use over the wire. I also cannot say &ldquo;the third run in the second paragraph,&rdquo; because that stops being true when somebody edits above it.</p>
+
+            <p>Collab WIW keeps a tiny lookup table next to the DOCX:</p>
+
+            <pre><code>stable ID -&gt; current path through the OOXML tree</code></pre>
+
+            <p>It also stores the next ID that can be assigned. All browsers create the initial table with the same document-order walk. When an edit creates a new node, the browser that made the edit sets the ID and includes it in the intent. Every other browser processes that exact value.</p>
+
+            <p>The sidecar lives next to the DOCX instead of inside it. Collaboration metadata stays out of the OOXML, which keeps DOCX round trips clean. In encrypted rooms the sidecar gets sealed into the checkpoint with the DOCX, so the server cannot read it either.</p>
+
+            <p>When a browser restores a checkpoint, it loads the DOCX and reapplies the sidecar. If an intent targets run <code>42</code>, run <code>42</code> means the same thing in every browser.</p>
+
+            <p>Stable IDs solve most false conflicts. Edits in different paragraphs usually have no positional relationship to resolve.</p>
+
+            <h2 id="ot-lite">The OT-lite architecture</h2>
+
+            <p>Google Docs is the peak editing experience for collaborative editing. It is about as seamless as it gets, but that is because a central server handles the document and broadcasts that state to everybody. That is the correct way to do it. There is no good reason for your browser to manually lay out complex OOXML into the DOM. But I want to do that!</p>
+
+            <p>There is still a good deal of complexity. If I insert three characters before your caret, your offset must move by three. If I delete the range that contains your caret, your position must collapse to the deletion point.</p>
+
+            <p>Collab WIW handles that with a small transform over run-local offsets. I have been calling it OT-lite.</p>
+
+            <p>The sidecar tells every browser which paragraph and piece of text an edit refers to. The transform has a much smaller job:</p>
+
+            <blockquote>
+                <p>What did the edits that landed ahead of mine do to the character position I was aiming at?</p>
+            </blockquote>
+
+            <p>That same little bit of math gets reused everywhere: on the plaintext server, inside the hidden mirror for encrypted rooms, when optimistic typing replays an edit, and when somebody hits undo.</p>
+
+            <p>This is where I had to correct my first idea. I originally thought deterministic OOXML layout was enough to stop clients from drifting. Two browsers can lay out a page exactly the same way and still apply an edit to two different pieces of text.</p>
+
+            <p>What keeps everybody together is much simpler: the same stable IDs, the same edit order, and the same deterministic editing code.</p>
+
+            <h2 id="optimistic-typing">Optimistic typing</h2>
+
+            <p>The browser applies a local edit before the server round trip. Its replica keeps two related states:</p>
+
+            <ul>
+                <li>the confirmed document contains the canonical sequence;</li>
+                <li>the visible document adds local pending edits on top.</li>
+            </ul>
+
+            <p>When I type, WordInWeb applies the edit to the visible document first and sends it in parallel. If an earlier remote edit changed its target, the client rolls back the state, transforms the pending edit, and replays it so the document stays visually synced.</p>
+
+            <p>The server remains authoritative about order. The browser remains responsive about presentation.</p>
+
+            <p>Pretty standard, more or less what all editors do.</p>
+
+            <h2 id="performance">Performance</h2>
+
+            <p>Can it run Doom? IDK, maybe? IT CAN let multiple collaborators work on documents as large as 500 pages.</p>
+
+            <p>Large-document performance depends on the amount of work attached to each edit. The viewer mounts a small window of pages. A text intent carries its affected paragraph through the replica and rendering layers. The editor reparses that paragraph, lays out the affected pages, and patches compatible page elements in place. The more things affected, the more the page has to recalculate. More on this in the other blog. Also, documents this big CHUG in Word on my computer.</p>
+
+            <p>Undo keeps one reference copy of the document at the last undo point. After you type, the editor compares the live document with that copy and saves the before-and-after text for the pieces that changed.</p>
+
+            <p>When you hit Undo, it swaps those pieces back. Bigger changes, like inserting a table or changing the document structure, use a full snapshot because the whole shape of the document changed.</p>
+
+            <p>When the browser compresses a recovery copy, it sends that work to a background worker so the editor can keep responding. The same idea applies to encrypting checkpoints, checking that browsers agree, and preparing browser saves. Each background task carries the edit number where it started, so the result returns to the correct place in the sequence.</p>
+
+            <p>TLDR: a benchmark on a 12,000-paragraph DOCX, or about 500 pages.</p>
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Mode</th>
+                            <th>Median</th>
+                            <th>p99</th>
+                            <th>Keystrokes painted</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Local editing</td>
+                            <td>7.1 ms</td>
+                            <td>13.7 ms</td>
+                            <td>100/100</td>
+                        </tr>
+                        <tr>
+                            <td>End-to-end encrypted collaboration</td>
+                            <td>7.6 ms</td>
+                            <td>20.0 ms</td>
+                            <td>100/100</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p>After garbage collection, the JavaScript heap settled near 162 MB locally and 182 MB collaboratively, which is not terrible. I think I started this project with it sitting at about 2 GB.</p>
+
+            <p>Edits that grew the document from 500 to 501 pages triggered full repagination and took 171 ms. That is not as great, but it was a tradeoff we made early when we chose how to render the DOM. Maybe I can draw it to a canvas and hyper-optimize performance later. But that is a later problem.</p>
+
+            <h2 id="rejoining">Rejoining, offline work, and stable URLs</h2>
+
+            <p>A big part of any collaborative editor is reconciling offline or disjoint edits. So if the server is ephemeral, how does all of that work when somebody joins late or brings an expired room back online?</p>
+
+            <p>For late joiners, their browser starts from a recent checkpoint and only replays the edits that came after it.</p>
+
+            <p>The first browser starts the room with one encrypted snapshot of the full DOCX. That snapshot includes the document and the stable-ID sidecar at a specific edit number. That is the checkpoint.</p>
+
+            <p>After that, the server keeps two things in memory:</p>
+
+            <ul>
+                <li>the latest encrypted checkpoint;</li>
+                <li>the ordered encrypted edits that came after it.</li>
+            </ul>
+
+            <p>When somebody joins, their browser downloads both, decrypts the checkpoint, restores the sidecar, and replays the newer edits in order. They end up at the same current document after replaying only the latest part of the room history.</p>
+
+            <p>One browser in the room gets assigned checkpoint duty. At certain edit numbers it takes the confirmed document from its local mirror, captures the sidecar from that same state, and encrypts them together. The server accepts that checkpoint when its edit number matches the current end of the room. It can then throw away the older encrypted edits already included in that checkpoint.</p>
+
+            <p>The checkpoint code generates the sidecar from the confirmed mirror. It walks the current document, records each stable ID&rsquo;s current location, and puts that table with the DOCX at the same edit number.</p>
+
+            <p>The server keeps the live room state in RAM. A server restart clears the room. The durable copies live in the browsers, so anybody who still has one can bring the document back online.</p>
+
+            <p>Each browser saves a recovery bundle in IndexedDB. It includes:</p>
+
+            <ul>
+                <li>the confirmed DOCX;</li>
+                <li>the sidecar;</li>
+                <li>the last confirmed edit number;</li>
+                <li>edits waiting for confirmation;</li>
+                <li>edits made while offline;</li>
+                <li>the room version where those offline edits started;</li>
+                <li>media references;</li>
+                <li>enough document history to tell whether one saved copy came before another.</li>
+            </ul>
+
+            <p>That same browser storage powers autosave, saved documents, recent versions, recovery drafts, and old copies from previous room versions. The demo also tells you when browser storage fails and cleans up abandoned copies during startup.</p>
+
+            <p>You can keep editing when the server disappears. Each edit applies to your local document and gets added to an offline list in browser storage. That list also records which version of the room you were editing.</p>
+
+            <p>When the connection comes back, there are a few possibilities:</p>
+
+            <ol>
+                <li>The same room is still alive. Your browser downloads the edits it missed, resends anything waiting for confirmation, and ignores duplicate replies by matching each edit&rsquo;s client ID and client-side edit number.</li>
+                <li>The same room is still alive and you made offline edits. Your browser catches up with the room first, then sends your offline edits through the normal collaboration path one at a time. Each one gets transformed against the edits that landed while you were away.</li>
+                <li>Somebody restarted the document in a new room and your saved copy is an earlier point in that same history. Your browser fast-forwards to the new room and keeps the older copy as a recoverable version.</li>
+                <li>Somebody restarted the document while you also made offline edits. Now there are two real branches. Collab WIW saves your full offline document as a draft and offers the text edits as tracked suggestions with your name attached. The draft preserves bigger structural changes exactly as your browser saved them.</li>
+                <li>The two copies belong to separate saved histories. Collab WIW keeps the full local copy as a draft and opens the live room as its own document. Both copies survive.</li>
+            </ol>
+
+            <p>Offline edits replay one at a time. After each edit gets confirmed, the browser removes it from the saved offline list. If the tab closes halfway through, the next session starts with the edits that remain.</p>
+
+            <h3>How the stable URL works</h3>
+
+            <p>A stable URL is the address for one collaboration:</p>
+
+            <pre><code>https://collab.word-in-web.com/?doc=d_...#k=...</code></pre>
+
+            <p>The <code>doc</code> value is a random 128-bit document ID. It stays the same every time that document comes back online.</p>
+
+            <p>Each live room gets its own random room version, called a <code>genesisId</code>. The browser derives fresh encryption keys from the document key and that room version. It also binds every checkpoint and edit to the document ID, room version, and edit number. That keeps an old encrypted edit attached to the exact room and position where it came from.</p>
+
+            <p>When the server dies or the room expires, a browser with a saved bundle can seed a fresh room under the same document ID. The document gets a new room version, while the original share URL still works. If two browsers try this at the same time, the first seed wins and the second browser joins it.</p>
+
+            <p>The random document ID makes guessing a room address basically impossible, but sometimes links leak.</p>
+
+            <p>So what if somebody yoinks your room&rsquo;s link and tries to mess with your stable URL? Technically, they can use their own client to seed a different document under an empty document ID. Assume the server already cleared the old room, so it has no previous checkpoint to compare against. It accepts the first new seed and gives it a fresh room version. A share code protects access to a live room, but the current revival request can choose a new code for the new room version.</p>
+
+            <p>This can take over the old collaboration URL, but it obviously cannot erase the copies already saved in other browsers. When an old participant returns, their browser sees that the room version changed and saves its previous document as a draft before it opens the new room.</p>
+
+            <p>The person then resolves the conflict. Small offline text edits can come into the live document as tracked suggestions. Structural edits and completely different documents stay as DRAFTS. If the new room contains an unrelated document, the old participant can open their saved draft, put it online under a new document ID, and share the new URL.</p>
+
+            <p>Moving to that new stable URL is quick in the demo. Like one button press.</p>
+
+            <h2 id="media">Media</h2>
+
+            <p>Images are way larger than normal edits, and a large image clogging up the server is suboptimal. But media can load asynchronously. We only need to know where it goes and how large it is. The actual image can load later.</p>
+
+            <p>The intent says where the image belongs, how big it is, and which encrypted blob to request. The encrypted image uploads over HTTP while the document keeps moving through the normal WebSocket sequence.</p>
+
+            <p>The relay keeps recently used images in RAM. Older images can move into an encrypted temporary disk cache. That cache gets a fresh key every time the server starts, and startup clears anything left from the previous run. If a server dies while media is on disk, the key disappears because it only existed in RAM. The server shreds the remaining files on boot.</p>
+
+            <p>The image address is a hash of the encrypted bytes. That lets the relay confirm that an upload matches the requested blob while the pixels stay encrypted. It also prevents media swaps in flight.</p>
+
+            <p>Eventually the cache drops the image. A late joiner can ask the other people in the room for it. A browser that still has the image uploads the same encrypted blob again, and everybody waiting for it downloads that copy.</p>
+
+            <h2 id="encryption">End-to-end encryption</h2>
+
+            <p>When you create a collaborative document, your browser generates a random document key and puts it in the URL fragment:</p>
+
+            <pre><code>https://collab.word-in-web.com/?doc=...#k=...</code></pre>
+
+            <p>Collab WIW uses the document key to create separate AES-GCM keys for document edits, media, and cursor positions. Each kind of data gets its own encryption lane.</p>
+
+            <p>The share code adds another layer. You send the link and the code separately. The browser stretches the code, mixes it into key generation, and uses the stretched value to prove that you can join the room.</p>
+
+            <p>Your browser keeps the document key and raw share code. The server receives the room ID, a verifier, encrypted envelopes, and the metadata it needs to route them.</p>
+
+            <h2 id="why-it-works">Why it works</h2>
+
+            <p>The final shape lands somewhere between traditional operational transformation and peer-to-peer collaboration:</p>
+
+            <ul>
+                <li>The server gives everybody one edit order.</li>
+                <li>The browsers hold the durable document.</li>
+                <li>Stable IDs make edits point at the same document pieces.</li>
+                <li>A small transform adjusts character positions when two people edit the same piece of text.</li>
+                <li>Each browser runs a hidden mirror that derives the confirmed document.</li>
+                <li>The visible editor adds your unconfirmed typing on top so it still feels immediate.</li>
+            </ul>
+
+            <p>The backend is light because its job is ordering and relaying encrypted data. The browsers already have the full document engine, so they handle parsing, validation, editing, and page layout.</p>
+
+            <p>Super TLDR: The server handles when an edit happened. The client browsers handle what the edit means.</p>
+
+            <h2 id="whats-next">What&rsquo;s next?</h2>
+
+            <p>Well, the intent architecture also lays the foundation for AI agents.</p>
+
+            <p>An agent can work with the same small editing commands that collaboration already uses.</p>
+
+            <p>Those edits can also happen live while a person works in the same document. IMO, that is the interesting part: the agent works inside the live document, and you can see every change as it happens.</p>
+
+            <p class="article-separator" aria-hidden="true">----------</p>
+
+            <p>P.S. This server is running on an old MacBook Air.</p>
+        </article>
+    </main>
+</body>
+</html>

@@ -9,9 +9,40 @@
     <link rel="stylesheet" href="../index.css">
 </head>
 <body>
-    <main class="article-shell">
-        <article>
+    <main class="blog-shell">
+        <aside class="blog-sidebar">
+            <a class="blog-home" href="../">← Alex Pickett</a>
+
+            <nav class="sidebar-section" aria-label="Blog posts">
+                <p class="sidebar-label">Posts</p>
+                <a class="post-link" href="collaborative-editing/">
+                    <strong>What does an RTS game have to do with a collaborative DOCX editor?</strong>
+                    <span>July 30, 2026 · Latest</span>
+                </a>
+                <span class="catalogue-separator" aria-hidden="true">----------</span>
+                <a class="post-link" href="./" aria-current="page">
+                    <strong>Building MS Word in a Web Browser</strong>
+                    <span>July 15, 2026</span>
+                </a>
+            </nav>
+
+            <nav class="sidebar-section" aria-label="On this page">
+                <p class="sidebar-label">On this page</p>
+                <a class="outline-link outline-link-title" href="#article">Building MS Word in a Web Browser</a>
+                <a class="outline-link outline-link-sub" href="#project-ground-work">Project ground work</a>
+                <a class="outline-link outline-link-sub" href="#training-loop">The training loop</a>
+                <a class="outline-link outline-link-sub" href="#separate-measurements">Measuring layout, weight, and color</a>
+                <a class="outline-link outline-link-sub" href="#raised-text">A niche Word rule</a>
+                <a class="outline-link outline-link-sub" href="#editing-performance">Editing and performance</a>
+                <a class="outline-link outline-link-sub" href="#where-it-stands">Where it stands</a>
+                <a class="outline-link outline-link-sub" href="#conclusion">Conclusion</a>
+                <a class="outline-link outline-link-sub" href="#postscript-title">P.S. Is this AI slop?</a>
+            </nav>
+        </aside>
+
+        <article class="article-shell" id="article">
             <header class="article-header">
+                <p class="article-kicker">WordInWeb · Rendering</p>
                 <h1>Building MS Word in a Web Browser</h1>
                 <p>July 15, 2026</p>
                 <div class="article-actions">
@@ -45,7 +76,7 @@
 
             <p>For what it’s worth, I leaned primarily on Fable for planning and architecture, but GPT 5.6-SOL was the real workhorse here. I also didn’t run out of Codex usage :). Thanks, Sam!</p>
 
-            <h2>Project ground work</h2>
+            <h2 id="project-ground-work">Project ground work</h2>
 
             <p><em>Just a quick note before we get into the juicy stuff. Credit: Fable.</em></p>
 
@@ -62,7 +93,7 @@ WordInWeb: layout -> absolutely positioned DOM elements</code></pre>
 
             <p>It’s easier for an LLM to work with positioned DOM than with a canvas. That’s basically it. A canvas would require maintaining a scene graph, spatial index, and repaint system. Trusting Fable’s infinite wisdom, I went with positioned DOM elements for the initial implementation because it was faster to build. Rewriting this to use canvas would clearly improve performance, but it would have made the evaluation framework much more complicated.</p>
 
-            <h2>The training loop</h2>
+            <h2 id="training-loop">The training loop</h2>
 
             <p>The test and loop itself is actually very simple.</p>
 
@@ -83,7 +114,7 @@ WordInWeb: layout -> absolutely positioned DOM elements</code></pre>
                 <figcaption>Word on the left, WordInWeb in the middle, and the remaining pixel diff on the right.</figcaption>
             </figure>
 
-            <h2>Measuring layout, weight, and color separately</h2>
+            <h2 id="separate-measurements">Measuring layout, weight, and color separately</h2>
 
             <p>A raw pixel diff turned out to be an incredibly suboptimal test. I initially neglected to ask, “What is the difference between a diff caused by color, font antialiasing, or structure?” The first few iterations floundered because the evaluation framework basically just kept saying “bad” and relied on the vision model’s perception, which was not quite capable enough to handle the layout piece.</p>
 
@@ -101,7 +132,7 @@ WordInWeb: layout -> absolutely positioned DOM elements</code></pre>
 
             <p>An eval optimization I wish I had added earlier was grouping fixtures into categories. For example, we now have general word processing, complex tables, math, other languages, formatting, graphics, and real world documents each with its own subscore in the eval harness. This allowed me to point agents and subagents at different categories. A coordinator could handle merging the subagent branches, and they usually didn’t step on each other’s toes.</p>
 
-            <h2>A niche Word rule the file does not explain: raising text can add no height</h2>
+            <h2 id="raised-text">A niche Word rule the file does not explain: raising text can add no height</h2>
 
             <p><em>Credit: Fable.</em></p>
 
@@ -113,7 +144,7 @@ WordInWeb: layout -> absolutely positioned DOM elements</code></pre>
 
             <p>Implementing that rule restored the correct 17-page count. Structural error on the three figure pages fell from 88%, 90%, and 99% to 9%, 4%, and 17%. It is the kind of behavior that would be almost impossible to guess from the file alone, but becomes obvious once the parity test points to the exact pages and the Word export provides something measurable.</p>
 
-            <h2>Looping framework for editing and performance</h2>
+            <h2 id="editing-performance">Looping framework for editing and performance</h2>
 
             <p>A DOCX viewer with Microsoft Word visual parity is meh. There are a bunch of ways to render DOCX on the web that are probably simpler and cleaner with a tiny backend process running OpenOffice. Also, I wanted more!</p>
 
@@ -180,7 +211,7 @@ WordInWeb: layout -> absolutely positioned DOM elements</code></pre>
 
             <p>Having both the performance evaluation and the visual parity evaluation makes manual bug spotting and fixing much easier. If I notice behavior that would be very difficult to replicate in a programmatic test, I can simply describe the issue to the agent, and the agent will operate within the framework until the bug is fixed.</p>
  
-            <h2>Where it stands</h2>
+            <h2 id="where-it-stands">Where it stands</h2>
 
             <div class="table-wrap">
                 <table>
@@ -217,7 +248,7 @@ WordInWeb: layout -> absolutely positioned DOM elements</code></pre>
 
             <p>Room for improvement? Always.</p>
 
-            <h2>Conclusion</h2>
+            <h2 id="conclusion">Conclusion</h2>
 
             <p>Is this Microsoft Word on the web? No. Sorry, I know the title lied. There are probably edge cases I can’t even fathom—and I fathomed Microsoft Word’s 3D objects. But is it pretty good? I’d say yes. Being able to render and edit tables, math, and pictures seamlessly on the web is a win in my book. At least I haven’t found anything with this much coverage in the wild that you can use as an off the shelf react component.</p>
 
