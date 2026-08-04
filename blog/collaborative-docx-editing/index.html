@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="How Collab WIW uses lockstep architecture, browser-owned documents, and end-to-end encryption for collaborative DOCX editing.">
+    <meta name="description" content="How Collab WIW uses lockstep architecture, end-to-end encryption, and BYO AI agents for collaborative DOCX editing.">
     <title>What does an RTS game have to do with a collaborative DOCX editor?</title>
     <link rel="canonical" href="https://www.aepick.me/blog/collaborative-docx-editing/">
 
@@ -42,7 +42,7 @@
                 <a class="outline-link outline-link-sub" href="#media">Media</a>
                 <a class="outline-link outline-link-sub" href="#encryption">End-to-end encryption</a>
                 <a class="outline-link outline-link-sub" href="#why-it-works">Why it works</a>
-                <a class="outline-link outline-link-sub" href="#whats-next">What&rsquo;s next?</a>
+                <a class="outline-link outline-link-sub" href="#agents">Agents</a>
             </nav>
         </aside>
 
@@ -344,13 +344,63 @@
 
             <p>Super TLDR: The server handles when an edit happened. The client browsers handle what the edit means.</p>
 
-            <h2 id="whats-next">What&rsquo;s next?</h2>
+            <h2 id="agents">Agents</h2>
 
-            <p>Well, the intent architecture also lays the foundation for AI agents.</p>
+            <p><code>@wordinweb/agent</code> wraps the WordInWeb DOCX engine in a schema-enforced interface built for AI runtimes. This way agents can create a document from scratch, load DOCX bytes without DOM, and connect to editors and work with human collaborators.</p>
 
-            <p>An agent can work with the same small editing commands that collaboration already uses.</p>
+            <p>An agent sees the document as paragraphs, runs, tables, comments, equations, drawings, fields, headers, footers, notes, and page geometry. Kind of like the DOCX package but lighter. Every editable thing gets a reference such as <code>block:...</code>, <code>run:...</code>, or <code>object:...</code>. The agent works with these semantic targets, and the package translates to internal XML paths.</p>
 
-            <p>Because the agent only really needs to send intents, it should be a lot easier to create a small DSL for it to pump out edits that won&rsquo;t break the document.</p>
+            <p>The package exposes six portable tools:</p>
+
+            <ul>
+                <li><code>compose</code> creates a complete document with paragraphs, tables, equations, charts, images, SmartArt, headers, and footers.</li>
+                <li><code>capabilities</code> returns the closed JSON schema for one exact operation.</li>
+                <li><code>inspect</code> returns document content and stable edit references.</li>
+                <li><code>edit</code> applies a bounded batch against a specific revision.</li>
+                <li><code>asset</code> reads image or object bytes when a task needs them.</li>
+                <li><code>save</code> writes the resulting DOCX.</li>
+            </ul>
+
+            <p>Inspection works progressively so context never gets blown out by a big document. The default budget is 100 blocks or 24,000 characters. That response includes the fields needed for common text work. More focused requests expand formatting, bookmarks, tables, objects, assets, or page geometry when the task calls for them.</p>
+
+            <p>Basically the agent gets the useful map first, then zooms into the expensive stuff. This saves a wild amount of context compared with serializing the whole DOCX model.</p>
+
+            <p>To avoid collisions, every inspection result carries a revision. The package also records a fingerprint for each paragraph, table, and object returned by that inspection. When the room advances, WordInWeb compares the edit target with its inspected fingerprint. An unchanged target proceeds across the newer revision. A changed target returns <code>needs_sync</code>, and the agent reads that section again before it retries. So two agents can keep working in separate sections while the collaboration sequencer handles the intent order.</p>
+
+            <p>Every agent operation is treated as an intent used by the editor. A headless document applies the intent atomically to its own DOCX. A collab document sends it through the local or online collab session. This is the important part IMO: the agent interface ends at the same intent layer as a human edit, so all of the existing validation, stable IDs, transform logic, undo data, encryption, and rendering keep working.</p>
+
+            <h3>How the live BYO Agent demo uses it</h3>
+
+            <p>The live demo adds a small bootstrap around that package. You bring an existing Codex or Claude Code session and give it a temporary WordInWeb invitation. So BYO Agent but no MCP.</p>
+
+            <p>When you click <code>Copy AI link</code>, the browser builds a payload with the room address, document ID, document key, share code, agent name, agent token, private chat key, expiration, and connection instructions. The server stores the ciphertext under a short random ID. The decryption key stays in the URL and reaches the agent through the copied command.</p>
+
+            <p>The copied block contains one exact <code>npx</code> command. Codex or Claude passes that string through its normal shell tool, which preserves the full URL mechanically. The command downloads the agent package and starts a detached Node bridge on the agent&rsquo;s computer.</p>
+
+            <p>That bridge decrypts the invitation, opens a WebSocket, and joins the room with an AI participant profile. It uses the same encrypted collaboration client as the browser and connects <code>AgentDocument</code> to the live <code>DocxDocument</code>. The bridge receives the current checkpoint, replays the encrypted intent tail, and builds a current local mirror before the agent edits.</p>
+
+            <p>The bridge attaches itself to the current Codex or Claude session. After setup, the model turn ends and the Node process keeps the WebSocket alive with a 25-second ping. The agent starts again when a message arrives.</p>
+
+            <p>The inviter&rsquo;s message arrives at the bridge. The bridge resumes the same Codex or Claude task and supplies the message as the next prompt. Each model action then runs as a short command through a local socket owned by that bridge:</p>
+
+            <ul>
+                <li><code>sync</code> gets the latest revision, activity, roster, and agent mode.</li>
+                <li><code>inspect</code> reads compact context or a focused document detail.</li>
+                <li><code>capabilities</code> gets the schema for the required edit.</li>
+                <li><code>edit</code> submits a revision-bound operation batch.</li>
+                <li><code>chat</code> sends the result back to the inviter.</li>
+                <li><code>close</code> ends the bridge session.</li>
+            </ul>
+
+            <p>Edits enter the room as normal editing intents.</p>
+
+            <p>Agents start in suggestion mode so you can review changes before they get applied. You can ofc switch it to editing mode. The mode change travels through the private agent channel and updates the bridge immediately.</p>
+
+            <p>The inviter can also tag the agent in a document comment. WordInWeb packages the comment, selected text, and target reference into a private task. The agent starts at the correct section and follows the active suggestion or editing mode.</p>
+
+            <p>Private chat uses a separate AES-GCM key shared by the inviter and the agent bridge. Other collaborators get the shared parts that matter to collaboration: the AI profile, presence, cursor, comments, suggestions, and edits.</p>
+
+            <p>So the full shape is pretty small. The agent package supplies the DOCX tools. The encrypted invitation supplies temporary room access. The Node bridge keeps the collaboration connection alive and wakes the existing model session. The intent system carries the actual work to every browser in order.</p>
 
             <p class="article-separator" aria-hidden="true">----------</p>
 
